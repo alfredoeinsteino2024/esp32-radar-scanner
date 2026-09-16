@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PERIMETER MONITORING SYSTEM — PMU-01</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+
+  :root{
+    --void:      #05080a;
+    --panel:     #0a0f0c;
+    --panel-2:   #0d130e;
+    --line:      #1e2c1d;
+    --line-lit:  #33492f;
+    --text:      #aebfa4;
+    --text-dim:  #5c6b53;
+    --text-bright:#dbe8cf;
+    --green:     #4fdc6d;
+    --green-dim: #1f5c30;
+    --amber:     #e0b34e;
+    --amber-dim: #5c4a1f;
+    --red:       #e6544a;
+    --red-dim:   #5c211f;
+  }
+
+  * { box-sizing: border-box; }
+
+  html,body{
+    margin:0; padding:0;
+    background:var(--void);
+    color:var(--text);
+    font-family:'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
+    font-size:13px;
+    letter-spacing:.02em;
+    height:100%;
+  }
+
+  body{
+    background-image:
+      radial-gradient(ellipse at 50% 0%, rgba(79,220,109,0.04), transparent 60%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 1px, transparent 1px, transparent 3px);
+  }
+
+  .shell{
+    display:grid;
+    grid-template-columns: 1fr 300px;
+    grid-template-rows: 44px 1fr 200px;
+    grid-template-areas:
+      "header header"
+      "scanner side"
+      "log     zones";
+    height:100vh;
+    gap:1px;
+    background:var(--line);
+    padding:1px;
+  }
+
+  .header{
+    grid-area:header;
+    background:var(--panel);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:0 18px;
+    border-bottom:1px solid var(--line);
+  }
+  .header .title{ color:var(--text-bright); font-weight:600; font-size:13px; letter-spacing:.14em; }
+  .header .title small{ display:block; color:var(--text-dim); font-weight:400; font-size:10px; letter-spacing:.1em; margin-top:2px; }
+  .status-pill{ display:flex; align-items:center; gap:8px; font-size:11px; letter-spacing:.1em; color:var(--green); }
+  .status-pill.offline{ color:var(--red); }
+  .dot{ width:7px;height:7px;border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green); animation: pulse 2.4s ease-in-out infinite; }
+  .status-pill.offline .dot{ background:var(--red); box-shadow:0 0 6px var(--red); }
+  @keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.35} }
+
+  .panel{ background:var(--panel); border:1px solid var(--line); display:flex; flex-direction:column; overflow:hidden; }
+  .panel-head{ padding:8px 14px; font-size:10.5px; letter-spacing:.14em; color:var(--text-dim); border-bottom:1px solid var(--line); display:flex; justify-content:space-between; }
+  .panel-head .tag{ color:var(--text-dim); }
+
+  .scanner-wrap{ grid-area:scanner; }
+  .scanner-body{ flex:1; position:relative; display:flex; align-items:center; justify-content:center; padding:10px 20px 30px; }
+  svg { overflow:visible; }
+  .ring{ fill:none; stroke:var(--line-lit); stroke-width:1; }
+  .ring-label{ fill:var(--text-dim); font-size:9px; font-family:inherit; }
+  .zone-line{ stroke:var(--line-lit); stroke-width:1; }
+  .sweep{ stroke:var(--green); stroke-width:1.6; filter:drop-shadow(0 0 5px rgba(79,220,109,.65)); transform-origin:0 0; }
+  .sweep-fill{ fill:url(#sweepGrad); transform-origin:0 0; }
+  .contact-dot{ fill:var(--red); filter:drop-shadow(0 0 6px var(--red)); }
+  .contact-ring{ fill:none; stroke:var(--red); stroke-width:1; opacity:.6; }
+  .center-pt{ fill:var(--text-bright); }
+  .axis-label{ fill:var(--text-dim); font-size:10px; }
+  .zone-label{ fill:var(--text-dim); font-size:9.5px; letter-spacing:.08em; }
+
+  .scanner-footer{ display:flex; justify-content:space-between; padding:10px 20px 14px; border-top:1px solid var(--line); font-size:10.5px; color:var(--text-dim); }
+  .scanner-footer b{ color:var(--text); font-weight:500; }
+
+  .side{ grid-area:side; display:grid; grid-template-rows: auto auto; gap:1px; background:var(--line); }
+  .side .panel{ border:none; }
+
+  .row{ display:flex; justify-content:space-between; align-items:center; padding:7px 14px; border-bottom:1px solid var(--line); font-size:11.5px; }
+  .row:last-child{ border-bottom:none; }
+  .row .k{ color:var(--text-dim); letter-spacing:.06em; }
+  .row .v{ color:var(--text-bright); font-weight:500; }
+  .v.ok{ color:var(--green); }
+  .v.warn{ color:var(--amber); }
+  .v.bad{ color:var(--red); }
+
+  .led{ width:6px; height:6px; border-radius:50%; display:inline-block; margin-right:7px; }
+  .led.ok{ background:var(--green); box-shadow:0 0 5px var(--green); }
+  .led.bad{ background:var(--red); box-shadow:0 0 5px var(--red); }
+  .led.dim{ background:var(--text-dim); }
+
+  .contact-block{ padding:12px 14px; }
+  .contact-status{ font-size:14px; font-weight:700; letter-spacing:.06em; margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+  .contact-status.clear{ color:var(--green); }
+  .contact-status.detect{ color:var(--red); }
+
+  .log-wrap{ grid-area:log; }
+  .log-body{ flex:1; overflow:hidden; font-size:11px; }
+  .log-row{ display:grid; grid-template-columns: 70px 90px 60px 70px; padding:5px 14px; border-bottom:1px solid var(--line); color:var(--text-dim); }
+  .log-row .e.detect{ color:var(--red); }
+  .log-row .e.clear{ color:var(--green); }
+  .log-row .b, .log-row .r{ color:var(--text); }
+  .log-row.new{ animation: rowIn .5s ease; }
+  @keyframes rowIn{ from{ background:rgba(79,220,109,.12);} to{ background:transparent; } }
+
+  .zones-wrap{ grid-area:zones; }
+  .zone-row{ display:flex; justify-content:space-between; align-items:center; padding:8px 14px; border-bottom:1px solid var(--line); font-size:11.5px; }
+  .zone-row:last-child{ border-bottom:none; }
+  .zone-name{ color:var(--text); letter-spacing:.06em; }
+  .zone-state.clear{ color:var(--green); }
+  .zone-state.contact{ color:var(--red); }
+
+  .meta-strip{ padding:8px 14px; font-size:9.5px; color:var(--text-dim); display:flex; flex-wrap:wrap; gap:14px; border-top:1px solid var(--line); }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <div class="header">
+    <div class="title">PERIMETER MONITORING SYSTEM<small>UNIT PMU-01 · SECTOR ALPHA · ULTRASONIC SECTOR SCAN — NOT RF RADAR</small></div>
+    <div class="status-pill offline" id="netStatusPill"><span class="dot"></span> <span id="netStatusText">CONNECTING...</span></div>
+  </div>
+
+  <div class="panel scanner-wrap">
+    <div class="panel-head"><span>SCANNING AREA</span><span class="tag">MODE: LIVE FEED</span></div>
+    <div class="scanner-body">
+      <svg id="scannerSvg" viewBox="-260 -230 520 250" width="100%" height="100%" style="max-width:640px;">
+        <defs>
+          <linearGradient id="sweepGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#4fdc6d" stop-opacity="0.28"/>
+            <stop offset="100%" stop-color="#4fdc6d" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+
+        <path class="ring" d="M -200,0 A 200,200 0 0,1 200,0"/>
+        <path class="ring" d="M -150,0 A 150,150 0 0,1 150,0"/>
+        <path class="ring" d="M -100,0 A 100,100 0 0,1 100,0"/>
+        <path class="ring" d="M -50,0 A 50,50 0 0,1 50,0"/>
+        <text class="ring-label" x="-197" y="-6">4.5m</text>
+        <text class="ring-label" x="-147" y="-6">3.4m</text>
+        <text class="ring-label" x="-97" y="-6">2.3m</text>
+        <text class="ring-label" x="-47" y="-6">1.1m</text>
+
+        <line class="zone-line" x1="0" y1="0" x2="200" y2="0"/>
+        <line class="zone-line" x1="0" y1="0" x2="141.4" y2="-141.4"/>
+        <line class="zone-line" x1="0" y1="0" x2="0" y2="-200"/>
+        <line class="zone-line" x1="0" y1="0" x2="-141.4" y2="-141.4"/>
+        <line class="zone-line" x1="0" y1="0" x2="-200" y2="0"/>
+
+        <text class="zone-label" x="-195" y="-60">ZONE A</text>
+        <text class="zone-label" x="-95" y="-160">ZONE B</text>
+        <text class="zone-label" x="50" y="-160">ZONE C</text>
+        <text class="zone-label" x="150" y="-60">ZONE D</text>
+
+        <text class="axis-label" x="-215" y="18">0°</text>
+        <text class="axis-label" x="205" y="18">180°</text>
+        <text class="axis-label" x="-6" y="-212">90°</text>
+
+        <g id="sweepGroup">
+          <path class="sweep-fill" d="M 0,0 L 200,0 A 200,200 0 0,1 197,-25 Z"/>
+          <line class="sweep" x1="0" y1="0" x2="200" y2="0"/>
+        </g>
+
+        <g id="contactsGroup"></g>
+
+        <circle class="center-pt" cx="0" cy="0" r="4"/>
+      </svg>
+    </div>
+    <div class="scanner-footer">
+      <div>ZONE <b id="curZone">-</b></div>
+      <div>MAX RANGE <b>4.50m</b></div>
+      <div>CURRENT ANGLE <b id="curAngle">---°</b></div>
+      <div>UPTIME <b id="uptime">00:00:00</b></div>
+    </div>
+  </div>
+
+  <div class="side">
+    <div class="panel">
+      <div class="panel-head"><span>SYSTEM STATUS</span></div>
+      <div class="row"><span class="k"><span class="led dim" id="ledEsp"></span>ESP32</span><span class="v" id="esperStatus">WAITING</span></div>
+      <div class="row"><span class="k"><span class="led dim" id="ledSensor"></span>ULTRASONIC</span><span class="v" id="sensorStatus">WAITING</span></div>
+      <div class="row"><span class="k"><span class="led dim" id="ledServo"></span>SERVO</span><span class="v" id="servoStatus">WAITING</span></div>
+      <div class="row"><span class="k"><span class="led dim" id="ledNet"></span>WEBSOCKET</span><span class="v" id="wsStatus">CONNECTING</span></div>
+      <div class="row"><span class="k">LAST UPDATE</span><span class="v" id="lastUpdate">--</span></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><span>CURRENT CONTACT</span></div>
+      <div class="contact-block">
+        <div class="contact-status clear" id="contactStatus">● NO DATA YET</div>
+        <div class="row" style="padding-left:0;padding-right:0;"><span class="k">BEARING</span><span class="v" id="cBearing">---°</span></div>
+        <div class="row" style="padding-left:0;padding-right:0;"><span class="k">RANGE</span><span class="v" id="cRange">-- m</span></div>
+        <div class="row" style="padding-left:0;padding-right:0;"><span class="k">ZONE</span><span class="v" id="cZone">-</span></div>
+      </div>
+      <div class="meta-strip">
+        <span>AZIMUTH 000–180</span>
+        <span id="sourceTag">LINK: ws://localhost:3000</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel log-wrap">
+    <div class="panel-head"><span>EVENT LOG</span><span class="tag">LAST 8</span></div>
+    <div class="log-body" id="logBody"></div>
+  </div>
+
+  <div class="panel zones-wrap">
+    <div class="panel-head"><span>ZONE STATUS</span></div>
+    <div id="zonesBody">
+      <div class="zone-row"><span class="zone-name">ZONE A · 0–45°</span><span class="zone-state clear" id="zoneA">● CLEAR</span></div>
+      <div class="zone-row"><span class="zone-name">ZONE B · 45–90°</span><span class="zone-state clear" id="zoneB">● CLEAR</span></div>
+      <div class="zone-row"><span class="zone-name">ZONE C · 90–135°</span><span class="zone-state clear" id="zoneC">● CLEAR</span></div>
+      <div class="zone-row"><span class="zone-name">ZONE D · 135–180°</span><span class="zone-state clear" id="zoneD">● CLEAR</span></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ---- LIVE data driver: connects to the Stage 7 Node.js WebSocket server ----
+// Replace 'localhost' with your backend PC's LAN IP if this HTML is opened
+// on a different device than the one running server.js.
+const WS_URL = 'ws://localhost:3000';
+
+const R = 200;
+const sweepGroup = document.getElementById('sweepGroup');
+const contactsGroup = document.getElementById('contactsGroup');
+const logBody = document.getElementById('logBody');
+const zoneEls = { A: document.getElementById('zoneA'), B: document.getElementById('zoneB'), C: document.getElementById('zoneC'), D: document.getElementById('zoneD') };
+
+let logEntries = [];
+let lastLoggedStatus = null;
+let connectStartTime = null;
+const ZONE_HOLD_MS = 3000; // how long a zone stays red after its last alert
+let zoneLastAlertTime = { A: 0, B: 0, C: 0, D: 0 };
+
+function pad(n, len){ return String(n).padStart(len, '0'); }
+function fmtTime(){ return new Date().toTimeString().slice(0,8); }
+
+// Angle 0 = left edge (matches the "0°" label), angle 180 = right edge,
+// angle 90 = straight up. This must match the servo's physical direction.
+function polar(deg, r){
+  const rad = deg * Math.PI / 180;
+  return { x: -r * Math.cos(rad), y: -r * Math.sin(rad) };
+}
+
+function addLog(event, bearing, rangeM){
+  const row = { t: fmtTime(), e: event, b: pad(Math.round(bearing),3)+'°', r: (rangeM < 0 ? '--' : rangeM.toFixed(2))+'m' };
+  logEntries.unshift(row);
+  logEntries = logEntries.slice(0, 8);
+  renderLog();
+}
+
+function renderLog(){
+  logBody.innerHTML = logEntries.map((r, i) => `
+    <div class="log-row ${i===0 ? 'new' : ''}">
+      <span class="t">${r.t}</span>
+      <span class="e ${r.e === 'CONTACT' ? 'detect' : 'clear'}">${r.e}</span>
+      <span class="b">${r.b}</span>
+      <span class="r">${r.r}</span>
+    </div>
+  `).join('');
+}
+
+function renderZones(){
+  const now = Date.now();
+  Object.keys(zoneEls).forEach(z => {
+    const el = zoneEls[z];
+    const stillHot = (now - zoneLastAlertTime[z]) < ZONE_HOLD_MS;
+    if(stillHot){
+      el.className = 'zone-state contact';
+      el.textContent = '⚠ CONTACT';
+    } else {
+      el.className = 'zone-state clear';
+      el.textContent = '● CLEAR';
+    }
+  });
+}
+
+function setWsConnected(connected){
+  const pill = document.getElementById('netStatusPill');
+  const text = document.getElementById('netStatusText');
+  const led = document.getElementById('ledNet');
+  const status = document.getElementById('wsStatus');
+  if(connected){
+    pill.className = 'status-pill';
+    text.textContent = 'LIVE';
+    led.className = 'led ok';
+    status.textContent = 'CONNECTED';
+    status.className = 'v ok';
+    connectStartTime = Date.now();
+  } else {
+    pill.className = 'status-pill offline';
+    text.textContent = 'DISCONNECTED';
+    led.className = 'led bad';
+    status.textContent = 'DISCONNECTED';
+    status.className = 'v bad';
+    ['ledEsp','ledSensor','ledServo'].forEach(id => document.getElementById(id).className = 'led dim');
+    ['esperStatus','sensorStatus','servoStatus'].forEach(id => { document.getElementById(id).textContent = 'WAITING'; });
+  }
+}
+
+function handleReading(data){
+  // Expected shape from the ESP32: {angle, distance, status, zone, timestamp}
+  const angle = Number(data.angle);
+  const distanceCm = Number(data.distance);
+  const distanceM = distanceCm < 0 ? -1 : distanceCm / 100;
+  const status = String(data.status || '').toUpperCase();
+  const zone = String(data.zone || '-').toUpperCase();
+
+  // first real reading confirms the whole chain is alive
+  ['ledEsp','ledSensor','ledServo'].forEach(id => document.getElementById(id).className = 'led ok');
+  document.getElementById('esperStatus').textContent = 'CONNECTED';
+  document.getElementById('sensorStatus').textContent = 'ACTIVE';
+  document.getElementById('servoStatus').textContent = 'ACTIVE';
+  document.getElementById('lastUpdate').textContent = fmtTime();
+
+  // rotate the sweep to match the real servo angle
+  const rot = angle + 180;
+  sweepGroup.setAttribute('transform', `rotate(${rot})`);
+  document.getElementById('curAngle').textContent = pad(Math.round(angle),3)+'°';
+  document.getElementById('curZone').textContent = zone;
+
+  document.getElementById('cBearing').textContent = pad(Math.round(angle),3)+'°';
+  document.getElementById('cRange').textContent = distanceM < 0 ? '--' : distanceM.toFixed(2)+'m';
+  document.getElementById('cZone').textContent = zone;
+
+  const statusEl = document.getElementById('contactStatus');
+  const isAlert = status === 'ALERT';
+  const isMonitor = status === 'MONITOR';
+
+  if(isAlert){
+    statusEl.className = 'contact-status detect';
+    statusEl.textContent = '⚠ CONTACT DETECTED';
+  } else if(isMonitor){
+    statusEl.className = 'contact-status clear';
+    statusEl.textContent = '● MONITORING';
+  } else if(status === 'NO_ECHO'){
+    statusEl.className = 'contact-status clear';
+    statusEl.textContent = '● NO ECHO';
+  } else {
+    statusEl.className = 'contact-status clear';
+    statusEl.textContent = '● NO CONTACT';
+  }
+
+  // draw / clear the contact marker on the scanner
+  contactsGroup.innerHTML = '';
+  if(isAlert && distanceM > 0){
+    const r = Math.min(distanceM / 4.5, 1) * R;
+    const p = polar(angle, r);
+    contactsGroup.innerHTML = `
+      <circle class="contact-ring" cx="${p.x}" cy="${p.y}" r="14"/>
+      <circle class="contact-dot" cx="${p.x}" cy="${p.y}" r="4.5"/>
+    `;
+  }
+
+  // update this zone's stored state (other zones keep their last known state
+  // since the sweep only reports one zone at a time)
+    if(isAlert && zoneLastAlertTime.hasOwnProperty(zone)){
+    zoneLastAlertTime[zone] = Date.now();
+  }
+
+  // log only on a status transition, not every single reading (the sweep
+  // sends dozens of readings per second — logging all of them would flood it)
+  if(status !== lastLoggedStatus && (isAlert || status === 'CLEAR')){
+    addLog(isAlert ? 'CONTACT' : 'CLEAR', angle, distanceM);
+    lastLoggedStatus = status;
+  }
+}
+
+function connect(){
+  const ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => setWsConnected(true);
+  ws.onclose = () => { setWsConnected(false); setTimeout(connect, 2000); };
+  ws.onerror = () => ws.close();
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      handleReading(data);
+    } catch (e) {
+      console.error('Bad message from server:', event.data);
+    }
+  };
+}
+
+setInterval(() => {
+  if(!connectStartTime) return;
+  const up = Math.floor((Date.now() - connectStartTime) / 1000);
+  const hh = pad(Math.floor(up/3600),2), mm = pad(Math.floor((up%3600)/60),2), ss = pad(up%60,2);
+  document.getElementById('uptime').textContent = `${hh}:${mm}:${ss}`;
+}, 1000);
+
+setInterval(renderZones, 200); // NEW — checks every 200ms whether any zone's hold has expired
+
+connect();
+</script>
+
+</body>
+</html>
