@@ -1,5 +1,4 @@
 
-
 Readme · MD
 # 🛰️ ESP32 Radar Scanner
  
@@ -99,5 +98,4 @@ Mechatronics Engineering student, FUTMINNA · AgriTech builder
 - X: [@AlfredFadipe](https://x.com/AlfredFadipe)
 ## 📄 License
  
-This project is licensed under the [MIT License](https://opensource.org/licenses/MIT) — free to use, modify, and distribute. Swap this section out if you'd rather use a different license or keep it closed.
- 
+This project is licensed under the [MIT License](https://opensource.org/licenses/MIT) — free to use, modify, and distribute.
